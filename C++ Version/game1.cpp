@@ -3,191 +3,215 @@
 #include <conio.h>
 #include <windows.h>
 #include <cmath>
+#include "SaveManager.h"  // Include the separate file
 
 using namespace std;
 
-class Player {
-public:
+// ---------------------------------------------------------
+// PLAYER STRUCT
+// ---------------------------------------------------------
+struct Player {
     int x, y;
     double vy;
     bool grounded;
-
-    Player() : x(0), y(0), vy(0), grounded(false) {}
-
-    void setStart(int sx, int sy) {
-        x = sx;
-        y = sy;
-        vy = 0;
-        grounded = true;
-    }
 };
 
+// ---------------------------------------------------------
+// LEVEL CLASS
+// ---------------------------------------------------------
 class Level {
 private:
+    int width, height;
     vector<vector<char>> grid;
 
 public:
-    int width, height;
     int goalX, goalY;
 
     Level(int w, int h) : width(w), height(h) {
         grid = vector<vector<char>>(height, vector<char>(width, ' '));
-        goalX = goalY = -1;
     }
 
-    void clear() {
-        for (auto &row : grid) fill(row.begin(), row.end(), ' ');
+    void createPlatform(int y, int startX, int length) {
+        for (int x = startX; x < startX + length && x < width; x++)
+            grid[y][x] = '#';
     }
 
-    void createGround() {
-        for (int i = 0; i < width; i++) grid[height - 1][i] = '#';
+    void createFullGround() {
+        for (int x = 0; x < width; x++)
+            grid[height - 1][x] = '#';
     }
 
     void createWalls() {
-        for (int i = 0; i < height; i++) {
-            grid[i][0] = '#';
-            grid[i][width - 1] = '#';
+        for (int y = 0; y < height; y++) {
+            grid[y][0] = '#';
+            grid[y][width - 1] = '#';
         }
     }
 
-    // Create a horizontal platform
-    void createPlatform(int y, int xStart, int xEnd) {
-        for (int x = xStart; x <= xEnd && x < width; x++) {
-            grid[y][x] = '#';
-        }
-    }
-
-    void setGoal(int gx, int gy) {
-        goalX = gx;
-        goalY = gy;
+    void setGoal(int x, int y) {
+        goalX = x;
+        goalY = y;
     }
 
     bool isBlocked(int x, int y) {
-        if (y < 0 || y >= height || x < 0 || x >= width) return true;
+        if (x < 0 || x >= width || y < 0 || y >= height) return true;
         return grid[y][x] == '#';
     }
 
     char getTile(int x, int y) {
-        if (x == goalX && y == goalY) return 'G'; // goal
         return grid[y][x];
     }
 };
 
+// ---------------------------------------------------------
+// GAME CLASS
+// ---------------------------------------------------------
 class Game {
 private:
-    Player player;
-    Level* currentLevel;
     HANDLE hConsole;
+    int width = 60;
+    int height = 20;
 
-    const double GRAVITY = 0.4;
+    Player player;
+    SaveManager saveManager;
+    vector<Level*> levels;
+    int currentLevelIndex = 0;
+
+    const double GRAVITY = 0.40;
     const double JUMP = -2.0;
     const double MAX_FALL = 2.0;
 
 public:
     Game() {
-        // Fixed window size
-        int width = 60, height = 20;
-
-        currentLevel = new Level(width, height);
-        hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-
-        setupConsoleWindow(width, height);
-        loadLevel1();
+        setupWindow();
+        loadLevels();
+        loadLevel(0);
     }
 
     ~Game() {
-        delete currentLevel;
+        for (auto* lvl : levels) delete lvl;
     }
 
-    void setupConsoleWindow(int width, int height) {
+    void setupWindow() {
+        hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
         COORD bufferSize = {(SHORT)(width + 3), (SHORT)(height + 4)};
         SetConsoleScreenBufferSize(hConsole, bufferSize);
 
         SMALL_RECT windowSize = {0, 0, (SHORT)(width + 2), (SHORT)(height + 3)};
         SetConsoleWindowInfo(hConsole, TRUE, &windowSize);
 
-        CONSOLE_CURSOR_INFO cursorInfo;
-        GetConsoleCursorInfo(hConsole, &cursorInfo);
-        cursorInfo.bVisible = false;
-        SetConsoleCursorInfo(hConsole, &cursorInfo);
+        CONSOLE_CURSOR_INFO ci;
+        GetConsoleCursorInfo(hConsole, &ci);
+        ci.bVisible = false;
+        SetConsoleCursorInfo(hConsole, &ci);
+
+        SetConsoleTitle("OOP Platformer Game");
     }
 
-//level 1
-    void loadLevel1() {
-        Level &L = *currentLevel;
+    void loadLevels() {
+        // LEVEL 1
+        Level* lvl1 = new Level(width, height);
+        lvl1->createFullGround();
+        lvl1->createWalls();
+        lvl1->createPlatform(14, 10, 10);
+        lvl1->createPlatform(11, 23, 12);
+        lvl1->createPlatform(8,  37, 13);
+        lvl1->createPlatform(7,  29, 4);
+        lvl1->createPlatform(5,  15, 10);
+        lvl1->createPlatform(17, 5, 5);
+        lvl1->setGoal(15, 4);
+        levels.push_back(lvl1);
 
-        L.clear();
-        L.createGround();
-        L.createWalls();
-
-        L.createPlatform(14, 10, 20);
-        L.createPlatform(11, 23, 35);
-        L.createPlatform(8, 37, 50);
-        L.createPlatform(7, 29, 33);
-        L.createPlatform(5, 15, 25);
-        L.createPlatform(17, 5, 10);
-
-        player.setStart(5, L.height - 2);
-        L.setGoal(15, 4);
+        // LEVEL 2
+        Level* lvl2 = new Level(width, height);
+        lvl2->createFullGround();
+        lvl2->createWalls();
+        lvl2->createPlatform(16,  8, 12);
+        lvl2->createPlatform(12, 20, 10);
+        lvl2->createPlatform(9,  32, 15);
+        lvl2->createPlatform(6,  45, 10);
+        lvl2->setGoal(50, 5);
+        levels.push_back(lvl2);
     }
 
-    void loadLevel2() {
-        Level &L = *currentLevel;
+    void loadLevel(int index) {
+        currentLevelIndex = index;
+        player.x = 5;
+        player.y = height - 2;
+        player.vy = 0;
+        player.grounded = true;
 
-        L.clear();
-        L.createGround();
-        L.createWalls();
+        saveManager.clear(); // clear saved positions on new level
+        system("cls");
+    }
 
-        L.createPlatform(13, 10, 20);
-        L.createPlatform(11, 23, 35);
-        L.createPlatform(5, 37, 50);
-        L.createPlatform(7, 29, 33);
-        L.createPlatform(17, 5, 10);
-
-        player.setStart(5, L.height - 2);
-        L.setGoal(15, 4);
+    Level* currentLevel() {
+        return levels[currentLevelIndex];
     }
 
     void input() {
-        if (_kbhit()) {
-            char key = _getch();
+        if (!_kbhit()) return;
+        char key = _getch();
 
-            if (key == -32 || key == 0) {
-                key = _getch();
-                if (key == 75) { // left
-                    if (!currentLevel->isBlocked(player.x - 1, player.y))
-                        player.x--;
-                }
-                if (key == 77) { // right
-                    if (!currentLevel->isBlocked(player.x + 1, player.y))
-                        player.x++;
-                }
+        // Arrow keys
+        if (key == -32 || key == 0) {
+            key = _getch();
+            if (key == 75) { // LEFT
+                if (!currentLevel()->isBlocked(player.x - 1, player.y))
+                    player.x--;
             }
-
-            // Jump ↑
-            if (key == 72 && player.grounded) {
-                player.vy = JUMP;
-                player.grounded = false;
+            if (key == 77) { // RIGHT
+                if (!currentLevel()->isBlocked(player.x + 1, player.y))
+                    player.x++;
             }
-
-            if (key == 27) exit(0);
         }
+
+        if (key == 72 && player.grounded) { // UP arrow → jump
+            player.vy = JUMP;
+            player.grounded = false;
+        }
+
+        // Save player state
+        if (key == 's' || key == 'S') {
+            PlayerState state = {player.x, player.y, player.vy, player.grounded};
+            saveManager.saveState(state);
+            cout << "\nPlayer state saved! (" << player.x << "," << player.y << ")\n";
+        }
+
+        // Undo last saved state
+        if (key == 'u' || key == 'U') {
+            PlayerState state;
+            if (saveManager.undoState(state)) {
+                player.x = state.x;
+                player.y = state.y;
+                player.vy = state.vy;
+                player.grounded = state.grounded;
+                cout << "\nReverted to last saved state: (" << player.x << "," << player.y << ")\n";
+            } else {
+                cout << "\nNo saved state to undo!\n";
+            }
+        }
+
+        if (key == 27) // ESC to exit
+            exit(0);
     }
 
     void physics() {
+        Level* lvl = currentLevel();
+
         if (!player.grounded) {
             player.vy += GRAVITY;
             if (player.vy > MAX_FALL) player.vy = MAX_FALL;
         }
 
         if (player.vy != 0) {
-            int steps = (int)(fabs(player.vy) + 0.5);
+            int steps = int(fabs(player.vy) + 0.5);
             int dir = (player.vy > 0) ? 1 : -1;
 
             for (int i = 0; i < steps; i++) {
                 int newY = player.y + dir;
-
-                if (currentLevel->isBlocked(player.x, newY)) {
+                if (lvl->isBlocked(player.x, newY)) {
                     player.vy = 0;
                     if (dir > 0) player.grounded = true;
                     break;
@@ -197,8 +221,7 @@ public:
             }
         }
 
-        // Standing check
-        if (currentLevel->isBlocked(player.x, player.y + 1)) {
+        if (lvl->isBlocked(player.x, player.y + 1)) {
             player.grounded = true;
             player.vy = 0;
         } else {
@@ -206,61 +229,67 @@ public:
         }
     }
 
-    void goalCheck() {
-        if (player.x == currentLevel->goalX &&
-            player.y == currentLevel->goalY) 
-        {
-            cout << "\n\n   LEVEL COMPLETE!";
-            exit(0);
+    void checkGoal() {
+        Level* lvl = currentLevel();
+
+        if (player.x == lvl->goalX && player.y == lvl->goalY) {
+            if (currentLevelIndex + 1 < levels.size()) {
+                cout << "\n\nLEVEL COMPLETE! Loading next level...\n";
+                Sleep(1000);
+                loadLevel(currentLevelIndex + 1);
+            } else {
+                cout << "\n\nYOU FINISHED ALL LEVELS!\n";
+                exit(0);
+            }
         }
     }
 
     void render() {
+        Level* lvl = currentLevel();
+
         COORD pos = {0, 0};
         SetConsoleCursorPosition(hConsole, pos);
 
-        Level &L = *currentLevel;
-
         string out;
-        out.reserve((L.width + 3) * (L.height + 4));
+        out.reserve(8000);
 
         // Top border
-        for (int i = 0; i < L.width + 2; i++) out += '=';
+        for (int x = 0; x < width + 2; x++) out += '=';
         out += '\n';
 
-        for (int y = 0; y < L.height; y++) {
+        for (int y = 0; y < height; y++) {
             out += '|';
-            for (int x = 0; x < L.width; x++) {
+            for (int x = 0; x < width; x++) {
                 if (x == player.x && y == player.y)
                     out += '@';
+                else if (x == lvl->goalX && y == lvl->goalY)
+                    out += 'G';
                 else
-                    out += L.getTile(x, y);
+                    out += lvl->getTile(x, y);
             }
             out += "|\n";
         }
 
-        out += " Arrow Keys = Move | Space = Jump | ESC = Exit";
+        out += " Arrow Keys = Move | Jump = UP ARROW | S = Save | U = Undo | ESC = EXIT";
 
         DWORD written;
-        WriteConsole(hConsole, out.c_str(), out.size(), &written, NULL);
+        WriteConsole(hConsole, out.c_str(), out.length(), &written, NULL);
     }
 
-    // ------------------------------------------
-    // MAIN LOOP
-    // ------------------------------------------
     void run() {
-        system("cls");
         while (true) {
             input();
             physics();
             render();
-            goalCheck();
+            checkGoal();
             Sleep(50);
         }
     }
 };
 
-
+// ---------------------------------------------------------
+// MAIN
+// ---------------------------------------------------------
 int main() {
     Game game;
     game.run();
