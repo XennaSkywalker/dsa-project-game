@@ -3,7 +3,8 @@
 #include <conio.h>
 #include <windows.h>
 #include <cmath>
-#include "SaveManager.h"  // Include the separate file
+#include "SaveManager.h"
+#include "ReplayManager.h"
 
 using namespace std;
 
@@ -74,6 +75,7 @@ private:
 
     Player player;
     SaveManager saveManager;
+    ReplayManager replayManager;
     vector<Level*> levels;
     int currentLevelIndex = 0;
 
@@ -106,7 +108,7 @@ public:
         ci.bVisible = false;
         SetConsoleCursorInfo(hConsole, &ci);
 
-        SetConsoleTitle("OOP Platformer Game");
+        SetConsoleTitle("OOP Platformer Game with Replay");
     }
 
     void loadLevels() {
@@ -142,7 +144,8 @@ public:
         player.vy = 0;
         player.grounded = true;
 
-        saveManager.clear(); // clear saved positions on new level
+        saveManager.clear();
+        replayManager.clear(); // Clear replay queue on new level
         system("cls");
     }
 
@@ -154,46 +157,54 @@ public:
         if (!_kbhit()) return;
         char key = _getch();
 
-        // Arrow keys
-        if (key == -32 || key == 0) {
-            key = _getch();
-            if (key == 75) { // LEFT
-                if (!currentLevel()->isBlocked(player.x - 1, player.y))
-                    player.x--;
+        if (!replayManager.isReplaying()) {
+            // Arrow keys
+            if (key == -32 || key == 0) {
+                key = _getch();
+                if (key == 75) { // LEFT
+                    if (!currentLevel()->isBlocked(player.x - 1, player.y))
+                        player.x--;
+                }
+                if (key == 77) { // RIGHT
+                    if (!currentLevel()->isBlocked(player.x + 1, player.y))
+                        player.x++;
+                }
             }
-            if (key == 77) { // RIGHT
-                if (!currentLevel()->isBlocked(player.x + 1, player.y))
-                    player.x++;
+
+            if (key == 72 && player.grounded) { // UP arrow → jump
+                player.vy = JUMP;
+                player.grounded = false;
+            }
+
+            // Save player state
+            if (key == 's' || key == 'S') {
+                PlayerState state = {player.x, player.y, player.vy, player.grounded};
+                saveManager.saveState(state);
+                cout << "\nPlayer state saved! (" << player.x << "," << player.y << ")\n";
+            }
+
+            // Undo last saved state
+            if (key == 'u' || key == 'U') {
+                PlayerState state;
+                if (saveManager.undoState(state)) {
+                    player.x = state.x;
+                    player.y = state.y;
+                    player.vy = state.vy;
+                    player.grounded = state.grounded;
+                    cout << "\nReverted to last saved state: (" << player.x << "," << player.y << ")\n";
+                } else {
+                    cout << "\nNo saved state to undo!\n";
+                }
+            }
+
+            // Start replay
+            if (key == 'r' || key == 'R') {
+                replayManager.startReplay();
+                cout << "\nReplay started!\n";
             }
         }
 
-        if (key == 72 && player.grounded) { // UP arrow → jump
-            player.vy = JUMP;
-            player.grounded = false;
-        }
-
-        // Save player state
-        if (key == 's' || key == 'S') {
-            PlayerState state = {player.x, player.y, player.vy, player.grounded};
-            saveManager.saveState(state);
-            cout << "\nPlayer state saved! (" << player.x << "," << player.y << ")\n";
-        }
-
-        // Undo last saved state
-        if (key == 'u' || key == 'U') {
-            PlayerState state;
-            if (saveManager.undoState(state)) {
-                player.x = state.x;
-                player.y = state.y;
-                player.vy = state.vy;
-                player.grounded = state.grounded;
-                cout << "\nReverted to last saved state: (" << player.x << "," << player.y << ")\n";
-            } else {
-                cout << "\nNo saved state to undo!\n";
-            }
-        }
-
-        if (key == 27) // ESC to exit
+        if (key == 27) // ESC
             exit(0);
     }
 
@@ -270,7 +281,7 @@ public:
             out += "|\n";
         }
 
-        out += " Arrow Keys = Move | Jump = UP ARROW | S = Save | U = Undo | ESC = EXIT";
+        out += " Arrow Keys = Move | Jump = UP ARROW | S = Save | U = Undo | R = Replay | ESC = EXIT";
 
         DWORD written;
         WriteConsole(hConsole, out.c_str(), out.length(), &written, NULL);
@@ -279,7 +290,22 @@ public:
     void run() {
         while (true) {
             input();
-            physics();
+
+            if (replayManager.isReplaying()) {
+                PlayerState state;
+                if (replayManager.getNext(state)) {
+                    player.x = state.x;
+                    player.y = state.y;
+                    player.vy = state.vy;
+                    player.grounded = state.grounded;
+                }
+            } else {
+                physics();
+                // Record player moves
+                PlayerState current = {player.x, player.y, player.vy, player.grounded};
+                replayManager.recordMove(current);
+            }
+
             render();
             checkGoal();
             Sleep(50);
