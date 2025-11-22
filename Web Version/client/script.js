@@ -1,110 +1,90 @@
-// Get canvas and context
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const messageDiv = document.getElementById("message");
 
-// Game grid settings
-const WIDTH = 60;
-const HEIGHT = 20;
-const CELL_WIDTH = 20;
-const CELL_HEIGHT = 20;
+const TILE_SIZE = 20;
+let width = 60; // updated width
+let height = 20; // updated height
 
-// Set canvas size to match grid
-canvas.width = WIDTH * CELL_WIDTH;
-canvas.height = HEIGHT * CELL_HEIGHT;
+let gameState = {};
 
-// Define level layout (same as your C++ backend)
-const level = Array.from({ length: HEIGHT }, () => Array(WIDTH).fill(" "));
-
-// Ground
-for (let x = 0; x < WIDTH; x++) level[HEIGHT - 1][x] = "#";
-
-// Platforms
-for (let x = 10; x < 20; x++) level[14][x] = "#";
-for (let x = 23; x < 35; x++) level[11][x] = "#";
-for (let x = 37; x < 50; x++) level[8][x] = "#";
-for (let x = 29; x < 33; x++) level[7][x] = "#";
-for (let x = 15; x < 25; x++) level[5][x] = "#";
-
-// Small step on left
-for (let x = 5; x < 10; x++) level[17][x] = "#";
-
-// Walls
-for (let y = 0; y < HEIGHT; y++) {
-  level[y][0] = "#";
-  level[y][WIDTH - 1] = "#";
-}
-
-// Goal
-const goal = { x: 15, y: 4 };
-
-// Player object
-let player = { x: 4, y: HEIGHT - 2 };
-
-// Draw everything
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw platforms/walls
-  for (let y = 0; y < HEIGHT; y++) {
-    for (let x = 0; x < WIDTH; x++) {
-      if (level[y][x] === "#") {
-        ctx.fillStyle = "black";
-        ctx.fillRect(x * CELL_WIDTH, y * CELL_HEIGHT, CELL_WIDTH, CELL_HEIGHT);
-      }
-    }
-  }
-
-  // Draw goal
-  ctx.fillStyle = "blue";
-  ctx.fillRect(
-    goal.x * CELL_WIDTH,
-    goal.y * CELL_HEIGHT,
-    CELL_WIDTH,
-    CELL_HEIGHT
-  );
-
-  // Draw player
-  ctx.fillStyle = "red";
-  ctx.fillRect(
-    player.x * CELL_WIDTH,
-    player.y * CELL_HEIGHT,
-    CELL_WIDTH,
-    CELL_HEIGHT
-  );
-}
-
-// Fetch game state from backend
-async function update() {
-  try {
-    const res = await fetch("/state");
-    const data = await res.json();
-    player = { x: data.x, y: data.y };
-
-    // Check for goal
-    if (player.x === goal.x && player.y === goal.y) {
-      alert("LEVEL COMPLETE!");
-    }
-
-    draw();
-  } catch (e) {
-    console.error("Could not fetch game state:", e);
-  }
+// Flash message helper
+function flashMessage(text, duration = 2000) {
+  messageDiv.textContent = text;
+  setTimeout(() => {
+    messageDiv.textContent = "";
+  }, duration);
 }
 
 // Send input to backend
-function sendInput(dir) {
-  fetch(`/input?dir=${dir}`);
+function sendInput(key) {
+  fetch("/input", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key }),
+  });
 }
 
-// Handle keyboard input
+// Draw the grid-based game
+function drawGame(data) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = 0; y < data.height; y++) {
+    for (let x = 0; x < data.width; x++) {
+      let tile = data.grid[y][x];
+      if (tile === "#") ctx.fillStyle = "#888"; // wall/platform
+      else if (tile === "P") ctx.fillStyle = "blue"; // player
+      else if (tile === "G") ctx.fillStyle = "red"; // goal
+      else ctx.fillStyle = "#333"; // empty
+
+      ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    }
+  }
+}
+
+// Fetch game state and render
+const FPS = 10; // target frames per second
+const FRAME_INTERVAL = 1000 / FPS;
+
+let lastTime = 0;
+
+async function update(time = 0) {
+  const delta = time - lastTime;
+
+  if (delta > FRAME_INTERVAL) {
+    lastTime = time;
+
+    try {
+      const res = await fetch("/state");
+      const data = await res.json();
+      width = data.width;
+      height = data.height;
+      gameState = data;
+      drawGame(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+// Keyboard controls with flash messages
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") sendInput("left");
-  if (e.key === "ArrowRight") sendInput("right");
-  if (e.key === " ") sendInput("jump");
+  else if (e.key === "ArrowRight") sendInput("right");
+  else if (e.key === "ArrowUp") sendInput("up");
+  else if (e.key === "s") {
+    sendInput("save");
+    flashMessage("Game saved!");
+  } else if (e.key === "u") {
+    sendInput("undo");
+    flashMessage("Undo last move!");
+  } else if (e.key === "r") {
+    sendInput("replay");
+    flashMessage("Replay has started!");
+  }
 });
 
-// Update loop (sync with backend 50ms)
-setInterval(update, 50);
-
-// Initial draw
-draw();
+// Start game loop
+update();
