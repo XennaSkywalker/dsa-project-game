@@ -14,8 +14,13 @@ IF ERRORLEVEL 1 (
     exit /b 1
 )
 
+echo Opening browser	
+start "" "http://localhost:8080"
+
 echo Compilation successful!
 echo Running server...
 server.exe
+
+
 
 pause

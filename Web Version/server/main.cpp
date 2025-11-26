@@ -21,16 +21,13 @@ ReplayManager replayManager;
 std::queue<GameState> replayBackup;
 bool isReplaying = false;
 
-// Physics parameters
 const double GRAVITY = 0.4;
 const double JUMP = -2.0;
 const double MAX_FALL = 2.0;
 
-// Grid dimensions
-const int WIDTH = 60;
+const int WIDTH = 50;
 const int HEIGHT = 20;
 
-// Simple level
 Level level(WIDTH, HEIGHT);
 
 // ------------------ Utility ------------------
@@ -38,24 +35,31 @@ std::string readFile(const std::string &filename) {
     std::ifstream file(filename);
     if (!file) return "";
     std::string content((std::istreambuf_iterator<char>(file)),
-                         std::istreambuf_iterator<char>());
+    std::istreambuf_iterator<char>());
     return content;
 }
 
+std::string readFileBinary(const std::string& path) {
+    std::ifstream ifs(path, std::ios::binary);
+    if (!ifs) return {};
+    return std::string((std::istreambuf_iterator<char>(ifs)),
+                        (std::istreambuf_iterator<char>()));
+}  
+ 
 // ------------------ Level Initialization ------------------
 void initLevel() {
-    level.createFullGround();
-    level.createWalls();
+    // level.createFullGround();
+    // level.createWalls();
     level.createPlatform(14, 10, 10);
     level.createPlatform(11, 23, 12);
-    level.createPlatform(8,  37, 13);
+    level.createPlatform(8,  37, 12);
     level.createPlatform(7,  29, 4);
     level.createPlatform(5,  15, 10);
     level.createPlatform(17, 5, 5);
     level.setGoal(15, 4);
 
-    gameState.player.x = 2;
-    gameState.player.y = HEIGHT-2;
+    gameState.player.x = 5;
+    gameState.player.y = 19;
     gameState.player.vy = 0;
     gameState.player.grounded = true;
 }
@@ -113,6 +117,7 @@ void replayTick(){
     replayBackup.pop();
 }
 
+
 // ------------------ Main ------------------
 int main(){
     initLevel();
@@ -136,6 +141,67 @@ int main(){
         res.set_content("{\"status\":\"ok\"}", "application/json");
     });
 
+    // Serve game assets
+    svr.Get("/assets/player.png", [](const httplib::Request&, httplib::Response& res){
+        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\player.png");
+        if(content.empty()){
+            res.status = 404;
+            res.set_content("File not found", "text/plain");
+        } else {
+            res.set_content(content, "image/png");
+        }
+    });
+
+    // svr.Get("/assets/wall.png", [](const httplib::Request&, httplib::Response& res){
+    //     std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\wall.png");
+    //     if(content.empty()){
+    //         res.status = 404;
+    //         res.set_content("File not found", "text/plain");
+    //     } else {
+    //         res.set_content(content, "image/png");
+    //     }
+    // });
+
+    svr.Get("/assets/platform.png", [](const httplib::Request&, httplib::Response& res){
+        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\platform.png");
+        if(content.empty()){
+            res.status = 404;
+            res.set_content("File not found", "text/plain");
+        } else {
+            res.set_content(content, "image/png");
+        }
+    });
+
+    svr.Get("/assets/goal.png", [](const httplib::Request&, httplib::Response& res){
+        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\goal.png");
+        if(content.empty()){
+            res.status = 404;
+            res.set_content("File not found", "text/plain");
+        } else {
+            res.set_content(content, "image/png");
+        }
+    });
+
+    svr.Get("/assets/top.png", [](const httplib::Request&, httplib::Response& res){
+        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\top.png");
+        if(content.empty()){
+            res.status = 404;
+            res.set_content("File not found", "text/plain");
+        } else {
+            res.set_content(content, "image/png");
+        }
+    });
+
+    svr.Get("/assets/background.png", [](const httplib::Request&, httplib::Response& res){
+        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\background.png");
+        if(content.empty()){
+            res.status = 404;
+            res.set_content("File not found", "text/plain");
+        } else {
+            res.set_content(content, "image/png");
+        }
+    });
+
     // Game state endpoint
     svr.Get("/state", [](const httplib::Request&, httplib::Response& res){
         physicsTick();
@@ -154,6 +220,7 @@ int main(){
             }
             j["grid"].push_back(row);
         }
+
         res.set_content(j.dump(), "application/json");
     });
 

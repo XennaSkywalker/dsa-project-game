@@ -11,8 +11,9 @@ public:
 
     bool undo(GameState& state) {
         if (saves.empty()) return false;
+        if((state.player.x == saves.top().player.x) && (state.player.y == saves.top().player.y)) saves.pop();
+        if (saves.empty()) saves.push(state);
         state = saves.top();
-        saves.pop();
         return true;
     }
 };

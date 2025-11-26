@@ -22,18 +22,18 @@ public:
     }
 
     // Fill the bottom with ground
-    void createFullGround() {
-        for (int x = 0; x < width; x++)
-            grid[height - 1][x] = '#';
-    }
+    // void createFullGround() {
+    //     for (int x = 0; x < width; x++)
+    //         grid[height - 1][x] = '!';
+    // }
 
     // Add walls on the sides
-    void createWalls() {
-        for (int y = 0; y < height; y++) {
-            grid[y][0] = '#';
-            grid[y][width - 1] = '#';
-        }
-    }
+    // void createWalls() {
+    //     for (int y = 0; y < height; y++) {
+    //         grid[y][0] = '!';
+    //         grid[y][width - 1] = '!';
+    //     }
+    // }
 
     void setGoal(int x, int y) {
         goalX = x;
