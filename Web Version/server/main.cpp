@@ -126,11 +126,11 @@ int main(){
 
     // Serve frontend files
     svr.Get("/", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\server\\client\\index.html"), "text/html");
+        res.set_content(readFile("client\\index.html"), "text/html");
     });
 
     svr.Get("/script.js", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\server\\client\\script.js"), "application/javascript");
+        res.set_content(readFile("client\\script.js"), "application/javascript");
     });
 
     // Input handler
