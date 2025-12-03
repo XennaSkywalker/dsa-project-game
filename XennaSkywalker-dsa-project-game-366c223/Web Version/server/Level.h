@@ -15,7 +15,7 @@ private:
     std::vector<std::vector<char>> grid;
 
 public:
-    int goalX, goalY;
+    int goalX = -1, goalY = -1;
     std::vector<Door> doors; // List of doors in this level
 
     Level(int w, int h) : width(w), height(h) {

@@ -9,15 +9,16 @@ public:
         replayQueue.push(state);
     }
 
+    void clear() {
+        while (!(replayQueue.empty()))
+        replayQueue.pop();
+    }
+
     bool next(GameState& state) {
         if (replayQueue.empty()) return false;
         state = replayQueue.front();
         replayQueue.pop();
         return true;
-    }
-
-    void reset(std::queue<GameState> q) {
-        replayQueue = q; // copy for replay
     }
 
     std::queue<GameState> copy() {

@@ -5,10 +5,15 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const messageDiv = document.getElementById("message");
 
-// Game Settings
-const TILE_SIZE = 30; // Size of each grid block in pixels
-const FPS = 20; // <<< CHANGE FPS HERE
+const TILE_SIZE = 30;
+const FPS = 20;
 const FRAME_DELAY = 1000 / FPS;
+
+// ⭐ Game stop flag
+let gameOver = false;
+
+// ⭐ Flash message timeout
+let flashTimeout = null;
 
 // ---------------------------------------
 // 2. ASSET LOADING
@@ -27,7 +32,7 @@ function loadAssets() {
       console.log(`Loaded image: ${name}`);
     };
     img.onerror = () => {
-      console.error(`Failed to load: ${name}.png — check /assets folder`);
+      console.error(`Failed to load: ${name}.png`);
     };
 
     assets[name] = img;
@@ -37,7 +42,22 @@ function loadAssets() {
 loadAssets();
 
 // ---------------------------------------
-// 3. INPUT HANDLING
+// 3. FLASH MESSAGE
+// ---------------------------------------
+function flashMessage(text, color = "#0ff", duration = 800) {
+  messageDiv.textContent = text;
+  messageDiv.style.color = color;
+
+  if (flashTimeout) clearTimeout(flashTimeout);
+
+  flashTimeout = setTimeout(() => {
+    messageDiv.textContent = "";
+    flashTimeout = null;
+  }, duration);
+}
+
+// ---------------------------------------
+// 4. INPUT HANDLING
 // ---------------------------------------
 function sendInput(key, choiceId = -1) {
   fetch("/input", {
@@ -48,6 +68,8 @@ function sendInput(key, choiceId = -1) {
 }
 
 document.addEventListener("keydown", (e) => {
+  if (gameOver) return;
+
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
     e.preventDefault();
   }
@@ -55,29 +77,33 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") sendInput("left");
   else if (e.key === "ArrowRight") sendInput("right");
   else if (e.key === "ArrowUp") sendInput("up");
-  else if (e.key.toLowerCase() === "s") sendInput("save");
-  else if (e.key.toLowerCase() === "u") sendInput("undo");
-  else if (e.key.toLowerCase() === "e") sendInput("replay");
-  else if (e.key === "1") sendInput("choose", 1);
+  else if (e.key.toLowerCase() === "s") {
+    sendInput("save");
+    flashMessage("Game Saved!", "rgba(255, 0, 144, 1)");
+  } else if (e.key.toLowerCase() === "u") {
+    sendInput("undo");
+    flashMessage("Undo Performed!", "#ff0");
+  } else if (e.key.toLowerCase() === "e") {
+    sendInput("replay");
+    flashMessage("Replay Started!", "#f0f");
+  } else if (e.key === "1") sendInput("choose", 1);
   else if (e.key === "2") sendInput("choose", 2);
+  else if (e.key.toLowerCase() === "q") sendInput("reset");
 });
 
 // ---------------------------------------
-// 4. DRAWING & RENDERING
+// 5. DRAWING & RENDERING
 // ---------------------------------------
 function drawGame(data) {
   if (!data || !data.grid) return;
 
-  // Clear Screen
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Background
   if (assets["background"]?.complete) {
     ctx.drawImage(assets["background"], 0, 0, canvas.width, canvas.height);
   }
 
-  // Grid Tiles
   for (let y = 0; y < data.height; y++) {
     const row = data.grid[y];
 
@@ -86,26 +112,34 @@ function drawGame(data) {
       const posX = x * TILE_SIZE;
       const posY = y * TILE_SIZE;
 
-      if (char === "#") {
+      if (char === "#")
         ctx.drawImage(assets["wall"], posX, posY, TILE_SIZE, TILE_SIZE);
-      } else if (char === "P") {
+      else if (char === "P")
         ctx.drawImage(assets["player"], posX, posY, TILE_SIZE, TILE_SIZE);
-      } else if (char === "G") {
+      else if (char === "G")
         ctx.drawImage(assets["goal"], posX, posY, TILE_SIZE, TILE_SIZE);
-      } else if (char === "D") {
+      else if (char === "D")
         ctx.drawImage(assets["door"], posX, posY, TILE_SIZE, TILE_SIZE);
-      }
     }
   }
 }
 
 // ---------------------------------------
-// 5. GAME LOOP (FPS LIMITED)
+// 6. GAME LOOP
 // ---------------------------------------
 async function update() {
+  if (gameOver) return;
+
   try {
     const res = await fetch("/state");
     const data = await res.json();
+
+    if (data.goalMessage && data.goalMessage !== "") {
+      messageDiv.textContent = data.goalMessage;
+      messageDiv.style.color = "rgba(255, 0, 0, 1)";
+      gameOver = true;
+      return;
+    }
 
     if (data.tutorial && data.tutorial !== "") {
       messageDiv.textContent = "TUTORIAL: " + data.tutorial;
@@ -117,7 +151,8 @@ async function update() {
       });
       messageDiv.textContent = choiceMsg;
       messageDiv.style.color = "#0ff";
-    } else {
+    } else if (!flashTimeout) {
+      // Only clear message if no flash message active
       messageDiv.textContent = "";
     }
 
@@ -126,7 +161,6 @@ async function update() {
     console.error("Game Loop Error:", err);
   }
 
-  // run next frame after a delay
   setTimeout(update, FRAME_DELAY);
 }
 

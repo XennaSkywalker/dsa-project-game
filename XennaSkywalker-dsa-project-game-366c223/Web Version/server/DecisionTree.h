@@ -25,8 +25,8 @@ public:
     
     DecisionTree() {
         root = new DecisionNode(0, "Choose your path", 0);
-        root->children.push_back(new DecisionNode(1, "Enter the Green Door (Forest)", 2));
-        root->children.push_back(new DecisionNode(2, "Enter the Stone Door (Cave)", 3));
+        root->children.push_back(new DecisionNode(1, "Enter the Lave Level", 2));
+        root->children.push_back(new DecisionNode(2, "Enter the Ice Level", 3));
     }
 
     ~DecisionTree() {
