@@ -50,13 +50,13 @@ std::string readFileBinary(const std::string& path) {
 void initLevel() {
     // level.createFullGround();
     // level.createWalls();
-    level.createPlatform(14, 10, 10);
-    level.createPlatform(11, 23, 12);
-    level.createPlatform(8,  37, 12);
-    level.createPlatform(7,  29, 4);
-    level.createPlatform(5,  15, 10);
-    level.createPlatform(17, 5, 5);
-    level.setGoal(15, 4);
+    level.createPlatform(3,  15, 10);
+    level.createPlatform(5,  29, 4);
+    level.createPlatform(7,  37, 12);
+    level.createPlatform(10, 23, 12);
+    level.createPlatform(13, 10, 10);
+    level.createPlatform(16, 5, 5);
+    level.setGoal(15, 2);
 
     gameState.player.x = 5;
     gameState.player.y = 19;
@@ -126,11 +126,11 @@ int main(){
 
     // Serve frontend files
     svr.Get("/", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\index.html"), "text/html");
+        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\server\\client\\index.html"), "text/html");
     });
 
     svr.Get("/script.js", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\script.js"), "application/javascript");
+        res.set_content(readFile("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\server\\client\\script.js"), "application/javascript");
     });
 
     // Input handler
@@ -143,7 +143,7 @@ int main(){
 
     // Serve game assets
     svr.Get("/assets/player.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\player.png");
+        std::string content = readFileBinary("client\\assets\\player.png");
         if(content.empty()){
             res.status = 404;
             res.set_content("File not found", "text/plain");
@@ -163,7 +163,7 @@ int main(){
     // });
 
     svr.Get("/assets/platform.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\platform.png");
+        std::string content = readFileBinary("client\\assets\\platform.png");
         if(content.empty()){
             res.status = 404;
             res.set_content("File not found", "text/plain");
@@ -173,7 +173,7 @@ int main(){
     });
 
     svr.Get("/assets/goal.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\goal.png");
+        std::string content = readFileBinary("client\\assets\\goal.png");
         if(content.empty()){
             res.status = 404;
             res.set_content("File not found", "text/plain");
@@ -183,7 +183,7 @@ int main(){
     });
 
     svr.Get("/assets/top.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\top.png");
+        std::string content = readFileBinary("client\\assets\\top.png");
         if(content.empty()){
             res.status = 404;
             res.set_content("File not found", "text/plain");
@@ -193,7 +193,7 @@ int main(){
     });
 
     svr.Get("/assets/background.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\background.png");
+        std::string content = readFileBinary("client\\assets\\background.png");
         if(content.empty()){
             res.status = 404;
             res.set_content("File not found", "text/plain");

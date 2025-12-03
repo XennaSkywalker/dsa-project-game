@@ -79,7 +79,7 @@ private:
     vector<Level*> levels;
     int currentLevelIndex = 0;
 
-    const double GRAVITY = 0.40;
+    const double GRAVITY = 0.3;
     const double JUMP = -2.0;
     const double MAX_FALL = 2.0;
 

@@ -13,7 +13,7 @@ echo.
 
 REM Note: We only compile main.cpp. The .h files are included automatically.
 REM We force disable C++17 features to fix the "optional" error.
-g++ main.cpp -o server.exe -std=c++14 -DJSON_HAS_CPP_17=0 -lws2_32
+g++ main.cpp Player.h GameState.h SaveManager.h ReplayManager.h DecisionTree.h TutorialManager.h -o server.exe -std=c++17 -lws2_32
 
 IF ERRORLEVEL 1 (
     echo.
