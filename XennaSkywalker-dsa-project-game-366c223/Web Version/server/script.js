@@ -1,122 +1,133 @@
-// Game Configuration
-const TILE_SIZE = 30;
+// ---------------------------------------
+// 1. INITIALIZATION & SETUP
+// ---------------------------------------
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const messageDiv = document.getElementById("message");
-const choicesDiv = document.getElementById("choices");
 
-// Assets
+// Game Settings
+const TILE_SIZE = 30; // Size of each grid block in pixels
+const FPS = 20; // <<< CHANGE FPS HERE
+const FRAME_DELAY = 1000 / FPS;
+
+// ---------------------------------------
+// 2. ASSET LOADING
+// ---------------------------------------
 const assets = {};
-const assetNames = ["background", "wall", "platform", "player", "goal", "top"];
-
-// Load Images
+const assetNames = ["background", "wall", "platform", "player", "goal", "door"];
 let imagesLoaded = 0;
+
 function loadAssets() {
-    assetNames.forEach(name => {
-        const img = new Image();
-        img.src = `/assets/${name}.png`;
-        img.onload = () => {
-            imagesLoaded++;
-            console.log(`Loaded: ${name}`);
-        };
-        assets[name] = img;
-    });
+  assetNames.forEach((name) => {
+    const img = new Image();
+    img.src = `/assets/${name}.png`;
+
+    img.onload = () => {
+      imagesLoaded++;
+      console.log(`Loaded image: ${name}`);
+    };
+    img.onerror = () => {
+      console.error(`Failed to load: ${name}.png — check /assets folder`);
+    };
+
+    assets[name] = img;
+  });
 }
+
 loadAssets();
 
-// Input Handling
-function sendInput(key, choiceId = null) {
-    fetch("/input", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, choiceId }),
-    }).catch(err => console.error("Input Error:", err));
+// ---------------------------------------
+// 3. INPUT HANDLING
+// ---------------------------------------
+function sendInput(key, choiceId = -1) {
+  fetch("/input", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, choiceId }),
+  }).catch((err) => console.error("Input Error:", err));
 }
 
-// Keyboard Listeners
 document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft") sendInput("left");
-    else if (e.key === "ArrowRight") sendInput("right");
-    else if (e.key === "ArrowUp") sendInput("up");
-    else if (e.key.toLowerCase() === "s") sendInput("save");
-    else if (e.key.toLowerCase() === "u") sendInput("undo");
-    else if (e.key.toLowerCase() === "r") sendInput("replay");
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+    e.preventDefault();
+  }
+
+  if (e.key === "ArrowLeft") sendInput("left");
+  else if (e.key === "ArrowRight") sendInput("right");
+  else if (e.key === "ArrowUp") sendInput("up");
+  else if (e.key.toLowerCase() === "s") sendInput("save");
+  else if (e.key.toLowerCase() === "u") sendInput("undo");
+  else if (e.key.toLowerCase() === "e") sendInput("replay");
+  else if (e.key === "1") sendInput("choose", 1);
+  else if (e.key === "2") sendInput("choose", 2);
 });
 
-// Main Draw Function
+// ---------------------------------------
+// 4. DRAWING & RENDERING
+// ---------------------------------------
 function drawGame(data) {
-    if (!data || !data.grid) return;
+  if (!data || !data.grid) return;
 
-    // Clear Canvas
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Clear Screen
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw Background (tiled)
-    if (assets["background"]) {
-        ctx.drawImage(assets["background"], 0, 0, canvas.width, canvas.height);
+  // Background
+  if (assets["background"]?.complete) {
+    ctx.drawImage(assets["background"], 0, 0, canvas.width, canvas.height);
+  }
+
+  // Grid Tiles
+  for (let y = 0; y < data.height; y++) {
+    const row = data.grid[y];
+
+    for (let x = 0; x < data.width; x++) {
+      const char = row[x];
+      const posX = x * TILE_SIZE;
+      const posY = y * TILE_SIZE;
+
+      if (char === "#") {
+        ctx.drawImage(assets["wall"], posX, posY, TILE_SIZE, TILE_SIZE);
+      } else if (char === "P") {
+        ctx.drawImage(assets["player"], posX, posY, TILE_SIZE, TILE_SIZE);
+      } else if (char === "G") {
+        ctx.drawImage(assets["goal"], posX, posY, TILE_SIZE, TILE_SIZE);
+      } else if (char === "D") {
+        ctx.drawImage(assets["door"], posX, posY, TILE_SIZE, TILE_SIZE);
+      }
     }
-
-    // Draw Grid
-    for (let y = 0; y < data.height; y++) {
-        const row = data.grid[y];
-        for (let x = 0; x < data.width; x++) {
-            const char = row[x];
-            const posX = x * TILE_SIZE;
-            const posY = y * TILE_SIZE;
-
-            if (char === '#') {
-                if (assets["wall"]) ctx.drawImage(assets["wall"], posX, posY, TILE_SIZE, TILE_SIZE);
-                else { ctx.fillStyle = "gray"; ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE); }
-            } 
-            else if (char === 'P') {
-                if (assets["player"]) ctx.drawImage(assets["player"], posX, posY, TILE_SIZE, TILE_SIZE);
-                else { ctx.fillStyle = "red"; ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE); }
-            }
-            else if (char === 'G') {
-                if (assets["goal"]) ctx.drawImage(assets["goal"], posX, posY, TILE_SIZE, TILE_SIZE);
-                else { ctx.fillStyle = "yellow"; ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE); }
-            }
-            else if (char === 'D') {
-                // Door visualization
-                ctx.fillStyle = "cyan"; 
-                ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
-            }
-        }
-    }
+  }
 }
 
-// Game Loop
+// ---------------------------------------
+// 5. GAME LOOP (FPS LIMITED)
+// ---------------------------------------
 async function update() {
-    try {
-        const res = await fetch("/state");
-        const data = await res.json();
+  try {
+    const res = await fetch("/state");
+    const data = await res.json();
 
-        // 1. Tutorial Message
-        if (data.tutorial) {
-            messageDiv.textContent = `TUTORIAL: ${data.tutorial}`;
-        } else {
-            messageDiv.textContent = "";
-        }
-
-        // 2. Choices UI
-        if (data.choices && data.choices.length > 0) {
-            choicesDiv.innerHTML = "<h3>CHOOSE A PATH:</h3>";
-            data.choices.forEach(c => {
-                const btn = document.createElement("button");
-                btn.innerText = c.text;
-                btn.onclick = () => sendInput("choose", c.id);
-                choicesDiv.appendChild(btn);
-            });
-        } else {
-            choicesDiv.innerHTML = "";
-        }
-
-        drawGame(data);
-    } catch (err) {
-        console.error("Game Loop Error:", err);
+    if (data.tutorial && data.tutorial !== "") {
+      messageDiv.textContent = "TUTORIAL: " + data.tutorial;
+      messageDiv.style.color = "#ff0";
+    } else if (data.choices && data.choices.length > 0) {
+      let choiceMsg = "DECISION TIME! Press ";
+      data.choices.forEach((c) => {
+        choiceMsg += `[${c.id}] for ${c.text}   `;
+      });
+      messageDiv.textContent = choiceMsg;
+      messageDiv.style.color = "#0ff";
+    } else {
+      messageDiv.textContent = "";
     }
-    requestAnimationFrame(update);
+
+    drawGame(data);
+  } catch (err) {
+    console.error("Game Loop Error:", err);
+  }
+
+  // run next frame after a delay
+  setTimeout(update, FRAME_DELAY);
 }
 
-// Start
 update();
