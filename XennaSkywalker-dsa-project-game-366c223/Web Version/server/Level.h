@@ -2,7 +2,7 @@
 #define LEVEL_H
 
 #include <vector>
-#include "DecisionTree.h" // Include the tree
+#include "DecisionTree.h"
 
 struct Door {
     int x, y;
@@ -16,7 +16,7 @@ private:
 
 public:
     int goalX = -1, goalY = -1;
-    std::vector<Door> doors; // List of doors in this level
+    std::vector<Door> doors;
 
     Level(int w, int h) : width(w), height(h) {
         resetGrid();
@@ -27,7 +27,6 @@ public:
         doors.clear();
     }
 
-    // Place a horizontal platform
     void createPlatform(int y, int startX, int length) {
         for (int x = startX; x < startX + length && x < width; x++)
             grid[y][x] = '#';
@@ -40,11 +39,10 @@ public:
             grid[y][x] = 'G';
     }
 
-    // New: Add a door to the level
     void addDoor(int x, int y) {
         doors.push_back({x, y, true});
         if (y >= 0 && y < height && x >= 0 && x < width)
-            grid[y][x] = 'D'; // Visual representation of a Door
+            grid[y][x] = 'D';
     }
 
     bool isBlocked(int x, int y) const {
@@ -57,7 +55,6 @@ public:
         return grid[y][x];
     }
     
-    // Check if player is standing on a door
     bool isDoor(int x, int y) const {
         for(const auto& d : doors) {
             if(d.x == x && d.y == y) return true;
@@ -69,4 +66,4 @@ public:
     int getHeight() const { return height; }
 };
 
-#endif // LEVEL_H
+#endif

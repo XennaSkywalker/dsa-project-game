@@ -3,7 +3,6 @@
 #include "httplib.h"
 #include "json.hpp"
 
-// Custom Headers
 #include "Player.h"
 #include "GameState.h"
 #include "Level.h"
@@ -21,7 +20,6 @@
 
 using json = nlohmann::json;
 
-// ------------------ Game State ------------------
 std::mutex gameMutex;
 GameState gameState;
 SaveManager saveManager;
@@ -49,7 +47,6 @@ std::string readFile(const std::string &filename) {
     return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }
 
-// ------------------ Level Logic ------------------
 void loadLevel(int id) {
     currentLevelID = id;
     level.resetGrid();
@@ -61,35 +58,36 @@ void loadLevel(int id) {
     gameState.player.vy = 0;
     gameState.player.grounded = true;
 
-    if (id == 1) { // Tutorial
+    if (id == 1) {
         level.createPlatform(16, 10, 10);
-        level.createPlatform(13, 23, 12);
-        level.addDoor(32, 12);
+        level.createPlatform(13, 22, 13);
+        level.addDoor(34, 12);
+        level.setGoal(-1,-1);
     }
-    else if (id == 2) { // Forest
+    else if (id == 2) {
         tutorialManager.isActive = false;
         level.createPlatform(3,  15, 10);
-        level.createPlatform(5,  29, 4);
-        level.createPlatform(7,  37, 12);
-        level.createPlatform(10, 23, 12);
-        level.createPlatform(13, 10, 10);
+        level.createPlatform(5,  27, 6);
+        level.createPlatform(7,  36, 12);
+        level.createPlatform(10, 23, 13);
+        level.createPlatform(13, 10, 11);
         level.createPlatform(16, 5, 5);
         level.setGoal(15, 2);
     }
-    else if (id == 3) { // Cave
+    else if (id == 3) {
         tutorialManager.isActive = false;
-        level.createPlatform(3,  15, 10);
-        level.createPlatform(5,  29, 4);
-        level.createPlatform(7,  37, 12);
-        level.createPlatform(10, 23, 12);
-        level.createPlatform(13, 10, 10);
-        level.createPlatform(16, 5, 5);
-        level.setGoal(15, 2);
+        level.createPlatform(3,  42, 5);
+        level.createPlatform(6,  35, 5);
+        level.createPlatform(8,  28, 5);
+        level.createPlatform(11, 21, 5);
+        level.createPlatform(14, 14, 5);
+        level.createPlatform(17, 7, 5);
+        level.setGoal(46, 2);
     }
 }
 
-// ------------------ Physics ------------------
-void physicsTick() {
+//physics
+void physics() {
     if (!gameState.player.grounded) {
         gameState.player.vy += GRAVITY;
         if (gameState.player.vy > MAX_FALL) gameState.player.vy = MAX_FALL;
@@ -117,7 +115,7 @@ void physicsTick() {
     }
 }
 
-// ------------------ Input ------------------
+//input
 void handleInput(const std::string& key, int choiceId = -1) {
     if (isReplaying) return;
 
@@ -164,7 +162,6 @@ void handleInput(const std::string& key, int choiceId = -1) {
     replayManager.record(gameState);
 }
 
-// ------------------ Replay Tick ------------------
 void replayTick() {
     if (!isReplaying) return;
     if (replayBackup.empty()) { isReplaying = false; return; }
@@ -172,7 +169,6 @@ void replayTick() {
     replayBackup.pop();
 }
 
-// ------------------ Main ------------------
 int main() {
     loadLevel(1);
 
@@ -211,7 +207,7 @@ int main() {
     svr.Get("/state", [](const httplib::Request&, httplib::Response& res) {
         std::lock_guard<std::mutex> lock(gameMutex);
 
-        physicsTick();
+        physics();
         replayTick();
 
         json j;
@@ -221,8 +217,6 @@ int main() {
         j["height"] = HEIGHT;
 
         j["tutorial"] = tutorialManager.getCurrentMessage();
-
-        // ⭐ NEW: Goal detection message
         if (gameState.player.x == level.goalX && gameState.player.y == level.goalY) {
             j["goalMessage"] = "GOAL REACHED!";
         } else {

@@ -1,6 +1,3 @@
-// ---------------------------------------
-// 1. INITIALIZATION & SETUP
-// ---------------------------------------
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const messageDiv = document.getElementById("message");
@@ -9,17 +6,11 @@ const TILE_SIZE = 30;
 const FPS = 20;
 const FRAME_DELAY = 1000 / FPS;
 
-// ⭐ Game stop flag
-let gameOver = false;
-
-// ⭐ Flash message timeout
 let flashTimeout = null;
 
-// ---------------------------------------
-// 2. ASSET LOADING
-// ---------------------------------------
+//asset
 const assets = {};
-const assetNames = ["background", "wall", "platform", "player", "goal", "door"];
+const assetNames = ["background", "platform", "player", "goal", "door"];
 let imagesLoaded = 0;
 
 function loadAssets() {
@@ -41,9 +32,6 @@ function loadAssets() {
 
 loadAssets();
 
-// ---------------------------------------
-// 3. FLASH MESSAGE
-// ---------------------------------------
 function flashMessage(text, color = "#0ff", duration = 800) {
   messageDiv.textContent = text;
   messageDiv.style.color = color;
@@ -56,9 +44,7 @@ function flashMessage(text, color = "#0ff", duration = 800) {
   }, duration);
 }
 
-// ---------------------------------------
-// 4. INPUT HANDLING
-// ---------------------------------------
+//input
 function sendInput(key, choiceId = -1) {
   fetch("/input", {
     method: "POST",
@@ -68,8 +54,6 @@ function sendInput(key, choiceId = -1) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if (gameOver) return;
-
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
     e.preventDefault();
   }
@@ -91,18 +75,12 @@ document.addEventListener("keydown", (e) => {
   else if (e.key.toLowerCase() === "q") sendInput("reset");
 });
 
-// ---------------------------------------
-// 5. DRAWING & RENDERING
-// ---------------------------------------
+//rendering
 function drawGame(data) {
   if (!data || !data.grid) return;
 
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  if (assets["background"]?.complete) {
-    ctx.drawImage(assets["background"], 0, 0, canvas.width, canvas.height);
-  }
 
   for (let y = 0; y < data.height; y++) {
     const row = data.grid[y];
@@ -113,23 +91,31 @@ function drawGame(data) {
       const posY = y * TILE_SIZE;
 
       if (char === "#")
-        ctx.drawImage(assets["wall"], posX, posY, TILE_SIZE, TILE_SIZE);
-      else if (char === "P")
+        ctx.drawImage(assets["platform"], posX, posY, TILE_SIZE, TILE_SIZE);
+      else if (char === "P") {
+        ctx.fillStyle = "#00b7ffff";
+        ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
         ctx.drawImage(assets["player"], posX, posY, TILE_SIZE, TILE_SIZE);
-      else if (char === "G")
+      } else if (char === "G") {
+        ctx.fillStyle = "#  60d1feff";
+        ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
         ctx.drawImage(assets["goal"], posX, posY, TILE_SIZE, TILE_SIZE);
-      else if (char === "D")
+      } else if (char === "D")
         ctx.drawImage(assets["door"], posX, posY, TILE_SIZE, TILE_SIZE);
+      else {
+        if (y > 10) {
+          ctx.fillStyle = "#00b7ffff";
+          ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+        } else {
+          ctx.fillStyle = "#60d1feff";
+          ctx.fillRect(posX, posY, TILE_SIZE, TILE_SIZE);
+        }
+      }
     }
   }
 }
 
-// ---------------------------------------
-// 6. GAME LOOP
-// ---------------------------------------
 async function update() {
-  if (gameOver) return;
-
   try {
     const res = await fetch("/state");
     const data = await res.json();
@@ -137,14 +123,16 @@ async function update() {
     if (data.goalMessage && data.goalMessage !== "") {
       messageDiv.textContent = data.goalMessage;
       messageDiv.style.color = "rgba(255, 0, 0, 1)";
-      gameOver = true;
-      return;
     }
 
-    if (data.tutorial && data.tutorial !== "") {
+    // Tutorial
+    else if (data.tutorial && data.tutorial !== "") {
       messageDiv.textContent = "TUTORIAL: " + data.tutorial;
       messageDiv.style.color = "#ff0";
-    } else if (data.choices && data.choices.length > 0) {
+    }
+
+    // Choices
+    else if (data.choices && data.choices.length > 0) {
       let choiceMsg = "DECISION TIME! Press ";
       data.choices.forEach((c) => {
         choiceMsg += `[${c.id}] for ${c.text}   `;
@@ -152,7 +140,6 @@ async function update() {
       messageDiv.textContent = choiceMsg;
       messageDiv.style.color = "#0ff";
     } else if (!flashTimeout) {
-      // Only clear message if no flash message active
       messageDiv.textContent = "";
     }
 
