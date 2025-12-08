@@ -2,6 +2,12 @@
 #define LEVEL_H
 
 #include <vector>
+#include "DecisionTree.h"
+
+struct Door {
+    int x, y;
+    bool active;
+};
 
 class Level {
 private:
@@ -9,37 +15,34 @@ private:
     std::vector<std::vector<char>> grid;
 
 public:
-    int goalX, goalY;
+    int goalX = -1, goalY = -1;
+    std::vector<Door> doors;
 
     Level(int w, int h) : width(w), height(h) {
-        grid = std::vector<std::vector<char>>(height, std::vector<char>(width, ' '));
+        resetGrid();
     }
 
-    // Place a horizontal platform
+    void resetGrid() {
+        grid = std::vector<std::vector<char>>(height, std::vector<char>(width, ' '));
+        doors.clear();
+    }
+
     void createPlatform(int y, int startX, int length) {
         for (int x = startX; x < startX + length && x < width; x++)
             grid[y][x] = '#';
     }
-
-    // Fill the bottom with ground
-    // void createFullGround() {
-    //     for (int x = 0; x < width; x++)
-    //         grid[height - 1][x] = '!';
-    // }
-
-    // Add walls on the sides
-    // void createWalls() {
-    //     for (int y = 0; y < height; y++) {
-    //         grid[y][0] = '!';
-    //         grid[y][width - 1] = '!';
-    //     }
-    // }
 
     void setGoal(int x, int y) {
         goalX = x;
         goalY = y;
         if (y >= 0 && y < height && x >= 0 && x < width)
             grid[y][x] = 'G';
+    }
+
+    void addDoor(int x, int y) {
+        doors.push_back({x, y, true});
+        if (y >= 0 && y < height && x >= 0 && x < width)
+            grid[y][x] = 'D';
     }
 
     bool isBlocked(int x, int y) const {
@@ -51,9 +54,16 @@ public:
         if (x < 0 || x >= width || y < 0 || y >= height) return '#';
         return grid[y][x];
     }
+    
+    bool isDoor(int x, int y) const {
+        for(const auto& d : doors) {
+            if(d.x == x && d.y == y) return true;
+        }
+        return false;
+    }
 
     int getWidth() const { return width; }
     int getHeight() const { return height; }
 };
 
-#endif // LEVEL_H
+#endif

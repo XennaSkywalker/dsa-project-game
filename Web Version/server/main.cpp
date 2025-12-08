@@ -1,3 +1,5 @@
+#define _WIN32_WINNT 0x0A00 // Fix for Windows 10 networking
+
 #include "httplib.h"
 #include "json.hpp"
 
@@ -6,18 +8,25 @@
 #include "Level.h"
 #include "SaveManager.h"
 #include "ReplayManager.h"
+#include "TutorialManager.h"
+#include "DecisionTree.h"
 
 #include <iostream>
 #include <queue>
 #include <cmath>
 #include <fstream>
+#include <string>
+#include <mutex>
 
 using json = nlohmann::json;
 
-// ------------------ Game State ------------------
+std::mutex gameMutex;
 GameState gameState;
 SaveManager saveManager;
 ReplayManager replayManager;
+TutorialManager tutorialManager;
+DecisionTree decisionTree;
+
 std::queue<GameState> replayBackup;
 bool isReplaying = false;
 
@@ -29,194 +38,207 @@ const int WIDTH = 50;
 const int HEIGHT = 20;
 
 Level level(WIDTH, HEIGHT);
+int currentLevelID = 1;
 
 // ------------------ Utility ------------------
 std::string readFile(const std::string &filename) {
-    std::ifstream file(filename);
+    std::ifstream file(filename, std::ios::binary);
     if (!file) return "";
-    std::string content((std::istreambuf_iterator<char>(file)),
-    std::istreambuf_iterator<char>());
-    return content;
+    return std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 }
 
-std::string readFileBinary(const std::string& path) {
-    std::ifstream ifs(path, std::ios::binary);
-    if (!ifs) return {};
-    return std::string((std::istreambuf_iterator<char>(ifs)),
-                        (std::istreambuf_iterator<char>()));
-}  
- 
-// ------------------ Level Initialization ------------------
-void initLevel() {
-    // level.createFullGround();
-    // level.createWalls();
-    level.createPlatform(3,  15, 10);
-    level.createPlatform(5,  29, 4);
-    level.createPlatform(7,  37, 12);
-    level.createPlatform(10, 23, 12);
-    level.createPlatform(13, 10, 10);
-    level.createPlatform(16, 5, 5);
-    level.setGoal(15, 2);
+void loadLevel(int id) {
+    currentLevelID = id;
+    level.resetGrid();
+    replayManager.clear();
+    saveManager.clear();
 
-    gameState.player.x = 5;
+    gameState.player.x = 10;
     gameState.player.y = 19;
     gameState.player.vy = 0;
     gameState.player.grounded = true;
+
+    if (id == 1) {
+        level.createPlatform(16, 10, 10);
+        level.createPlatform(13, 22, 13);
+        level.addDoor(34, 12);
+        level.setGoal(-1,-1);
+    }
+    else if (id == 2) {
+        tutorialManager.isActive = false;
+        level.createPlatform(3,  15, 10);
+        level.createPlatform(5,  27, 6);
+        level.createPlatform(7,  36, 12);
+        level.createPlatform(10, 23, 13);
+        level.createPlatform(13, 10, 11);
+        level.createPlatform(16, 5, 5);
+        level.setGoal(15, 2);
+    }
+    else if (id == 3) {
+        tutorialManager.isActive = false;
+        level.createPlatform(3,  42, 5);
+        level.createPlatform(6,  35, 5);
+        level.createPlatform(8,  28, 5);
+        level.createPlatform(11, 21, 5);
+        level.createPlatform(14, 14, 5);
+        level.createPlatform(17, 7, 5);
+        level.setGoal(46, 2);
+    }
 }
 
-// ------------------ Physics ------------------
-void physicsTick() {
+//physics
+void physics() {
     if (!gameState.player.grounded) {
         gameState.player.vy += GRAVITY;
         if (gameState.player.vy > MAX_FALL) gameState.player.vy = MAX_FALL;
     }
 
-    int steps = int(fabs(gameState.player.vy)+0.5);
-    int dir = (gameState.player.vy>0)?1:-1;
+    int steps = int(fabs(gameState.player.vy) + 0.5);
+    int dir = (gameState.player.vy > 0) ? 1 : -1;
 
-    for(int i=0;i<steps;i++){
+    for (int i = 0; i < steps; i++) {
         int newY = gameState.player.y + dir;
-        if(level.isBlocked(gameState.player.x,newY)){
+        if (level.isBlocked(gameState.player.x, newY)) {
             gameState.player.vy = 0;
-            if(dir>0) gameState.player.grounded = true;
+            if (dir > 0) gameState.player.grounded = true;
             break;
-        } else gameState.player.y = newY;
+        } else {
+            gameState.player.y = newY;
+        }
     }
 
-    if(level.isBlocked(gameState.player.x, gameState.player.y+1)){
+    if (level.isBlocked(gameState.player.x, gameState.player.y + 1)) {
         gameState.player.grounded = true;
         gameState.player.vy = 0;
-    } else gameState.player.grounded = false;
+    } else {
+        gameState.player.grounded = false;
+    }
 }
 
-// ------------------ Input ------------------
-void handleInput(const std::string& key){
-    if(isReplaying) return;
+//input
+void handleInput(const std::string& key, int choiceId = -1) {
+    if (isReplaying) return;
 
-    if(key=="left" && !level.isBlocked(gameState.player.x-1, gameState.player.y)) gameState.player.x--;
-    else if(key=="right" && !level.isBlocked(gameState.player.x+1, gameState.player.y)) gameState.player.x++;
-    else if(key=="up" && gameState.player.grounded) {
+    bool allowed = true;
+    if (tutorialManager.isActive) {
+        if (key == "left" || key == "right" || key == "up") {
+            allowed = tutorialManager.checkProgress(key);
+        }
+    }
+    if (!allowed) return;
+
+    if (key == "choose" && choiceId != -1) {
+        int nextLevel = decisionTree.getTargetLevel(choiceId);
+        if (nextLevel != -1) {
+            loadLevel(nextLevel);
+            return;
+        }
+    }
+
+    if (key == "left" && !level.isBlocked(gameState.player.x - 1, gameState.player.y)) {
+        gameState.player.x--;
+    }
+    else if (key == "right" && !level.isBlocked(gameState.player.x + 1, gameState.player.y)) {
+        gameState.player.x++;
+    }
+    else if (key == "up" && gameState.player.grounded) {
         gameState.player.vy = JUMP;
         gameState.player.grounded = false;
     }
-    else if(key=="save") saveManager.save(gameState);
-    else if(key=="undo") saveManager.undo(gameState);
-    else if(key=="replay") {
+    else if (key == "save") {
+        saveManager.save(gameState);
+    }
+    else if (key == "undo") {
+        saveManager.undo(gameState);
+    }
+    else if (key == "replay") {
         replayBackup = replayManager.copy();
         isReplaying = true;
     }
 
+    else if (key == "reset")
+        loadLevel(1);
+
     replayManager.record(gameState);
 }
 
-// ------------------ Replay ------------------
-void replayTick(){
-    if(!isReplaying) return;
-    if(replayBackup.empty()){ isReplaying=false; return; }
+void replayTick() {
+    if (!isReplaying) return;
+    if (replayBackup.empty()) { isReplaying = false; return; }
     gameState = replayBackup.front();
     replayBackup.pop();
 }
 
-
-// ------------------ Main ------------------
-int main(){
-    initLevel();
+int main() {
+    loadLevel(1);
 
     httplib::Server svr;
 
-    // Serve frontend files
-    svr.Get("/", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("client\\index.html"), "text/html");
+    svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
+        std::string html = readFile("index.html");
+        res.set_content(html.empty() ? "<h1>Error: index.html missing</h1>" : html, "text/html");
     });
 
-    svr.Get("/script.js", [](const httplib::Request&, httplib::Response& res){
-        res.set_content(readFile("client\\script.js"), "application/javascript");
+    svr.Get("/script.js", [](const httplib::Request&, httplib::Response& res) {
+        std::string js = readFile("script.js");
+        res.set_content(js.empty() ? "console.error('script.js missing');" : js, "application/javascript");
     });
 
-    // Input handler
-    svr.Post("/input", [](const httplib::Request& req, httplib::Response& res){
-        auto j = json::parse(req.body);
-        std::string key = j["key"];
-        handleInput(key);
-        res.set_content("{\"status\":\"ok\"}", "application/json");
-    });
+    auto ret = svr.set_mount_point("/assets", "./assets");
+    if (!ret) std::cout << "Warning: 'assets' folder not found.\n";
 
-    // Serve game assets
-    svr.Get("/assets/player.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("client\\assets\\player.png");
-        if(content.empty()){
-            res.status = 404;
-            res.set_content("File not found", "text/plain");
-        } else {
-            res.set_content(content, "image/png");
+    svr.Post("/input", [](const httplib::Request& req, httplib::Response& res) {
+        try {
+            std::lock_guard<std::mutex> lock(gameMutex);
+            auto j = json::parse(req.body);
+
+            std::string key = j["key"];
+            int choiceId = -1;
+            if (j.contains("choiceId")) choiceId = j["choiceId"];
+
+            handleInput(key, choiceId);
+            res.set_content("{\"status\":\"ok\"}", "application/json");
+        }
+        catch (...) {
+            res.status = 400;
         }
     });
 
-    // svr.Get("/assets/wall.png", [](const httplib::Request&, httplib::Response& res){
-    //     std::string content = readFileBinary("C:\\Users\\adity\\Downloads\\DSA-Project-Game\\Web Version\\client\\assets\\wall.png");
-    //     if(content.empty()){
-    //         res.status = 404;
-    //         res.set_content("File not found", "text/plain");
-    //     } else {
-    //         res.set_content(content, "image/png");
-    //     }
-    // });
+    svr.Get("/state", [](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(gameMutex);
 
-    svr.Get("/assets/platform.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("client\\assets\\platform.png");
-        if(content.empty()){
-            res.status = 404;
-            res.set_content("File not found", "text/plain");
-        } else {
-            res.set_content(content, "image/png");
-        }
-    });
-
-    svr.Get("/assets/goal.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("client\\assets\\goal.png");
-        if(content.empty()){
-            res.status = 404;
-            res.set_content("File not found", "text/plain");
-        } else {
-            res.set_content(content, "image/png");
-        }
-    });
-
-    svr.Get("/assets/top.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("client\\assets\\top.png");
-        if(content.empty()){
-            res.status = 404;
-            res.set_content("File not found", "text/plain");
-        } else {
-            res.set_content(content, "image/png");
-        }
-    });
-
-    svr.Get("/assets/background.png", [](const httplib::Request&, httplib::Response& res){
-        std::string content = readFileBinary("client\\assets\\background.png");
-        if(content.empty()){
-            res.status = 404;
-            res.set_content("File not found", "text/plain");
-        } else {
-            res.set_content(content, "image/png");
-        }
-    });
-
-    // Game state endpoint
-    svr.Get("/state", [](const httplib::Request&, httplib::Response& res){
-        physicsTick();
+        physics();
         replayTick();
+
         json j;
+
         j["player"] = { {"x", gameState.player.x}, {"y", gameState.player.y} };
         j["width"] = WIDTH;
         j["height"] = HEIGHT;
+
+        j["tutorial"] = tutorialManager.getCurrentMessage();
+        if (gameState.player.x == level.goalX && gameState.player.y == level.goalY) {
+            j["goalMessage"] = "GOAL REACHED!";
+        } else {
+            j["goalMessage"] = "";
+        }
+
+        if (level.isDoor(gameState.player.x, gameState.player.y)) {
+            auto options = decisionTree.getOptions();
+            j["choices"] = json::array();
+            for (auto& opt : options) {
+                j["choices"].push_back({ {"id", opt.first}, {"text", opt.second} });
+            }
+        }
+
         j["grid"] = json::array();
-        for(int y=0;y<HEIGHT;y++){
-            std::string row="";
-            for(int x=0;x<WIDTH;x++){
-                if(x==gameState.player.x && y==gameState.player.y) row+="P";
-                else if(x==level.goalX && y==level.goalY) row+="G";
-                else row += level.getTile(x,y);
+        for (int y = 0; y < HEIGHT; y++) {
+            std::string row = "";
+            for (int x = 0; x < WIDTH; x++) {
+                if (x == gameState.player.x && y == gameState.player.y) row += "P";
+                else if (x == level.goalX && y == level.goalY) row += "G";
+                else if (level.isDoor(x, y)) row += "D";
+                else row += level.getTile(x, y);
             }
             j["grid"].push_back(row);
         }
@@ -224,6 +246,6 @@ int main(){
         res.set_content(j.dump(), "application/json");
     });
 
-    std::cout << "Server running on http://localhost:8080\n";
-    svr.listen("0.0.0.0",8080);
+    std::cout << "Server started at http://localhost:8080\n";
+    svr.listen("0.0.0.0", 8080);
 }

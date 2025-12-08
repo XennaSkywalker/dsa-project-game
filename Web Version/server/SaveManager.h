@@ -9,6 +9,11 @@ public:
         saves.push(state);
     }
 
+    void clear() {
+        while (!(saves.empty()))
+        saves.pop();
+    }
+
     bool undo(GameState& state) {
         if (saves.empty()) return false;
         if((state.player.x == saves.top().player.x) && (state.player.y == saves.top().player.y)) saves.pop();

@@ -1,26 +1,33 @@
 @echo off
-REM -------------------------------
-REM Compile main.cpp to server.exe
-REM -------------------------------
+setlocal EnableDelayedExpansion
+REM -------------------------------------------
+REM  Game Server Build Script
+REM -------------------------------------------
 
-REM Change directory to where main.cpp is located
-cd /d "%~dp0"
+echo.
+echo ==========================================
+echo   Compiling Game Server...
+echo ==========================================
+echo.
 
-echo Compiling main.cpp...
-g++ main.cpp Player.h GameState.h SaveManager.h ReplayManager.h -o server.exe -std=c++17 -lws2_32
-IF ERRORLEVEL 1 (
-    echo Compilation failed!
-    pause
-    exit /b 1
-)
 
-echo Opening browser	
+REM Compile
+REM -std=c++11: Standard C++
+REM -lws2_32 -lwsock32: Links Windows Socket Libraries
+REM -D_WIN32_WINNT=0x0A00: Sets Windows version to Win10 (Fixes WSAPoll/getaddrinfo errors)
+REM -static: Prevents missing DLL errors
+g++ main.cpp Player.h GameState.h SaveManager.h ReplayManager.h DecisionTree.h TutorialManager.h -o server.exe -std=c++17 -lws2_32
+
+
+echo.
+echo   Compilation Successful! Starting Server...
+echo ==========================================
+echo.
+
+REM Open Browser
 start "" "http://localhost:8080"
 
-echo Compilation successful!
-echo Running server...
+REM Run Server
 server.exe
-
-
 
 pause
